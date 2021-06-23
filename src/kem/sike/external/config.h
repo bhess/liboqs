@@ -31,6 +31,7 @@
 #define TARGET_S390X 3
 #define TARGET_ARM 4
 #define TARGET_ARM64 5
+#define TARGET_PPC64LE 6
 
 #if defined(_AMD64_)
 #define TARGET TARGET_AMD64
@@ -62,6 +63,12 @@ typedef uint16_t hdigit_t; // Unsigned 16-bit digit
 #define LOG2RADIX 6
 typedef uint64_t digit_t;  // Unsigned 64-bit digit
 typedef uint32_t hdigit_t; // Unsigned 32-bit digit
+#elif defined(_PPC64LE_)
+#define TARGET TARGET_PPC64LE
+#define RADIX           64
+#define LOG2RADIX       6
+typedef uint64_t digit_t;  // Unsigned 64-bit digit
+typedef uint32_t hdigit_t; // Unsigned 32-bit digit
 #else
 #error-- "Unsupported ARCHITECTURE"
 #endif
@@ -80,6 +87,8 @@ typedef uint64_t uint128_t[2];
 #elif (TARGET == TARGET_AMD64 && OS_TARGET == OS_NIX)
 typedef unsigned uint128_t __attribute__((mode(TI)));
 #elif (TARGET == TARGET_ARM64 && OS_TARGET == OS_NIX)
+typedef unsigned uint128_t __attribute__((mode(TI)));
+#elif (TARGET == TARGET_PPC64LE && OS_TARGET == OS_NIX)
 typedef unsigned uint128_t __attribute__((mode(TI)));
 #elif (TARGET == TARGET_AMD64 && OS_TARGET == OS_WIN)
 typedef uint64_t uint128_t[2];
@@ -219,7 +228,7 @@ static __inline unsigned int is_digit_lessthan_ct(digit_t x, digit_t y) { // Is 
         ADC128(addend, product, carry, result);                    \
     }
 
-#elif ((TARGET == TARGET_AMD64 || TARGET == TARGET_ARM64) && OS_TARGET == OS_NIX)
+#elif ((TARGET == TARGET_AMD64 || TARGET == TARGET_ARM64 || TARGET == TARGET_PPC64LE) && OS_TARGET == OS_NIX)
 
 // Digit multiplication
 #define MUL(multiplier, multiplicand, hi, lo)                                    \
