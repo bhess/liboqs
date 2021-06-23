@@ -28,7 +28,7 @@ endif()
 endif()
 
 # BIKE is not supported on Windows and 32-bit ARM
-cmake_dependent_option(OQS_ENABLE_KEM_BIKE "Enable BIKE algorithm family" ON "NOT WIN32; NOT ARCH_ARM32v7" OFF)
+cmake_dependent_option(OQS_ENABLE_KEM_BIKE "Enable BIKE algorithm family" ON "NOT WIN32; NOT ARCH_ARM32v7; NOT ARCH_X86" OFF)
 cmake_dependent_option(OQS_ENABLE_KEM_bike1_l1_cpa "" ON "OQS_ENABLE_KEM_BIKE" OFF)
 cmake_dependent_option(OQS_ENABLE_KEM_bike1_l1_fo "" ON "OQS_ENABLE_KEM_BIKE" OFF)
 cmake_dependent_option(OQS_ENABLE_KEM_bike1_l3_cpa "" ON "OQS_ENABLE_KEM_BIKE" OFF)
