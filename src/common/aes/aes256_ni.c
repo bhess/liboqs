@@ -17,20 +17,8 @@
 typedef struct {
 	__m128i sk_exp[15];
 	__m128i iv;
-	//uint8_t iv[AES_BLOCKBYTES];
 } aes256ctx;
 
-static uint32_t UINT32_TO_BE(const uint32_t x) {
-	union {
-		uint32_t val;
-		uint8_t bytes[4];
-	} y;
-	y.bytes[0] = (x >> 24) & 0xFF;
-	y.bytes[1] = (x >> 16) & 0xFF;
-	y.bytes[2] = (x >> 8) & 0xFF;
-	y.bytes[3] = x & 0xFF;
-	return y.val;
-}
 #define BE_TO_UINT32(n) (uint32_t)((((uint8_t *) &(n))[0] << 24) | (((uint8_t *) &(n))[1] << 16) | (((uint8_t *) &(n))[2] << 8) | (((uint8_t *) &(n))[3] << 0))
 
 // From crypto_core/aes256encrypt/dolbeau/aesenc-int
@@ -88,7 +76,6 @@ static inline void aes256ni_setkey_encrypt(const unsigned char *key, __m128i rke
 }
 
 void oqs_aes256_load_schedule_ni(const uint8_t *key, void **_schedule) {
-	//*_schedule = malloc(15 * sizeof(__m128i));
 	*_schedule = malloc(sizeof(aes256ctx));
 	OQS_EXIT_IF_NULLPTR(*_schedule);
 	assert(*_schedule != NULL);
@@ -98,15 +85,11 @@ void oqs_aes256_load_schedule_ni(const uint8_t *key, void **_schedule) {
 
 void oqs_aes256_load_iv_ni(const uint8_t *iv, size_t iv_len, void *_schedule) {
 	aes256ctx *ctx = _schedule;
+	const int8_t *ivi = (const int8_t *) iv;
 	if (iv_len == 12) {
-		uint8_t tmp[16] = { 0 };
-		memcpy(tmp, iv, 12);
-		ctx->iv = _mm_loadu_si128((const __m128i *)tmp);
-		//memcpy(&ctx->iv, iv, 12);
-		//memset(&ctx->iv[12], 0, 4);
+		ctx->iv = _mm_set_epi8(0, 0, 0, 0, ivi[8], ivi[9], ivi[10], ivi[11], ivi[4], ivi[5], ivi[6], ivi[7], ivi[0], ivi[1], ivi[2], ivi[3]);
 	} else if (iv_len == 16) {
 		ctx->iv = _mm_loadu_si128((const __m128i *)iv);
-		//memcpy(ctx->iv, iv, 16);
 	} else {
 		exit(EXIT_FAILURE);
 	}
@@ -114,7 +97,6 @@ void oqs_aes256_load_iv_ni(const uint8_t *iv, size_t iv_len, void *_schedule) {
 
 void oqs_aes256_free_schedule_ni(void *schedule) {
 	if (schedule != NULL) {
-		//OQS_MEM_secure_free(schedule, 15 * sizeof(__m128i));
 		OQS_MEM_secure_free(schedule, sizeof(aes256ctx));
 	}
 }
@@ -153,78 +135,42 @@ void oqs_aes256_ecb_enc_sch_ni(const uint8_t *plaintext, const size_t plaintext_
 }
 
 static void aes_inc_ctr(__m128i *iv) {
-	__m128i mask = _mm_set_epi8(12,13,14,15,11,10,9,8,7,6,5,4,3,2,1,0);
-	__m128i one = _mm_set_epi32(1,0,0,0);
+	__m128i mask = _mm_set_epi8(12, 13, 14, 15, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
+	__m128i one = _mm_set_epi32(1, 0, 0, 0);
 	*iv = _mm_shuffle_epi8(_mm_add_epi32(_mm_shuffle_epi8(*iv, mask), one), mask);
 }
 
-//#include <stdio.h>
-
-//static void print_iv(const uint8_t* iv) {
-//	for (int i = 0; i < 16; ++i) {
-//		printf("%02x ", iv[i]);
-//	}
-//	printf("\n");fflush(stdout);
-//}
-
 void oqs_aes256_ctr_enc_sch_upd_blks_ni(void *schedule, uint8_t *out, size_t out_blks) {
-	//uint32_t ctr;
-	//uint32_t ctr_be;
-	aes256ctx* ctx = (aes256ctx *) schedule;
-	//uint8_t *block = ((aes256ctx *) schedule)->iv;
-	//__m128 block = ctx->iv;
-	size_t out_len = out_blks * 16;
+	aes256ctx *ctx = (aes256ctx *) schedule;
 
-	//memcpy(&ctr_be, &block[12], 4);
-	//ctr = BE_TO_UINT32(ctr_be);
-
-	//printf("oqs_aes256_ctr_enc_sch_upd_blks_ni...\n");
-
-	while (out_len >= 16) {
-		//ctr_be = UINT32_TO_BE(ctr);
-		//memcpy(&block[12], (uint8_t *) &ctr_be, 4);
+	while (out_blks > 0) {
 		oqs_aes256_enc_sch_block_ni((const uint8_t *) &ctx->iv, schedule, out);
 		out += 16;
-		out_len -= 16;
-		//ctr++;
-
-		//print_iv(ctx->iv);
-		//print_iv((const uint8_t*) &ctx->mm_iv);
-		//printf("\n");
-
+		out_blks--;
 		aes_inc_ctr(&ctx->iv);
 	}
-	//ctr_be = UINT32_TO_BE(ctr);
-	//memcpy(&block[12], (uint8_t *) &ctr_be, 4);
 }
 
 void oqs_aes256_ctr_enc_sch_ni(const uint8_t *iv, const size_t iv_len, const void *schedule, uint8_t *out, size_t out_len) {
-	uint8_t block[16];
-	uint32_t ctr;
-	uint32_t ctr_be;
-
-	memcpy(block, iv, 12);
+	__m128i block;
+	const int8_t *ivi = (const int8_t *) iv;
 	if (iv_len == 12) {
-		ctr = 0;
+		block = _mm_set_epi8(0, 0, 0, 0, ivi[8], ivi[9], ivi[10], ivi[11], ivi[4], ivi[5], ivi[6], ivi[7], ivi[0], ivi[1], ivi[2], ivi[3]);
 	} else if (iv_len == 16) {
-		memcpy(&ctr_be, &iv[12], 4);
-		ctr = BE_TO_UINT32(ctr_be);
+		block = _mm_loadu_si128((const __m128i *)iv);
 	} else {
 		exit(EXIT_FAILURE);
 	}
+
 	while (out_len >= 16) {
-		ctr_be = UINT32_TO_BE(ctr);
-		memcpy(&block[12], (uint8_t *) &ctr_be, 4);
-		oqs_aes256_enc_sch_block_ni(block, schedule, out);
+		oqs_aes256_enc_sch_block_ni((const uint8_t *) &block, schedule, out);
 		out += 16;
 		out_len -= 16;
-		ctr++;
+		aes_inc_ctr(&block);
 	}
 	if (out_len > 0) {
 		uint8_t tmp[16];
-		ctr_be = UINT32_TO_BE(ctr);
-		memcpy(&block[12], (uint8_t *) &ctr_be, 4);
-		oqs_aes256_enc_sch_block_ni(block, schedule, tmp);
+		oqs_aes256_enc_sch_block_ni((const uint8_t *) &block, schedule, tmp);
 		memcpy(out, tmp, out_len);
 	}
 }
