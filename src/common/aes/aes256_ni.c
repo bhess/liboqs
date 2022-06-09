@@ -85,9 +85,9 @@ void oqs_aes256_load_schedule_ni(const uint8_t *key, void **_schedule) {
 
 void oqs_aes256_load_iv_ni(const uint8_t *iv, size_t iv_len, void *_schedule) {
 	aes256ctx *ctx = _schedule;
-	const int8_t *ivi = (const int8_t *) iv;
 	if (iv_len == 12) {
-		ctx->iv = _mm_set_epi8(0, 0, 0, 0, ivi[8], ivi[9], ivi[10], ivi[11], ivi[4], ivi[5], ivi[6], ivi[7], ivi[0], ivi[1], ivi[2], ivi[3]);
+		const int32_t *ivi = (const int32_t *) iv;
+		ctx->iv = _mm_set_epi32(0, ivi[2], ivi[1], ivi[0]);
 	} else if (iv_len == 16) {
 		ctx->iv = _mm_loadu_si128((const __m128i *)iv);
 	} else {
@@ -100,6 +100,7 @@ void oqs_aes256_free_schedule_ni(void *schedule) {
 		OQS_MEM_secure_free(schedule, sizeof(aes256ctx));
 	}
 }
+
 
 // From crypto_core/aes256encrypt/dolbeau/aesenc-int
 static inline void aes256ni_encrypt(const __m128i rkeys[15], const unsigned char *n, unsigned char *out) {
@@ -135,9 +136,9 @@ void oqs_aes256_ecb_enc_sch_ni(const uint8_t *plaintext, const size_t plaintext_
 }
 
 static void aes_inc_ctr(__m128i *iv) {
-	__m128i mask = _mm_set_epi8(12, 13, 14, 15, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
-	__m128i one = _mm_set_epi32(1, 0, 0, 0);
-	*iv = _mm_shuffle_epi8(_mm_add_epi32(_mm_shuffle_epi8(*iv, mask), one), mask);
+	__m128i mask = _mm_set_epi8(8, 9, 10, 11, 12, 13, 14, 15, 7, 6, 5, 4, 3, 2, 1, 0);
+	__m128i one = _mm_set_epi64x(1, 0);
+	*iv = _mm_shuffle_epi8(_mm_add_epi64(_mm_shuffle_epi8(*iv, mask), one), mask);
 }
 
 void oqs_aes256_ctr_enc_sch_upd_blks_ni(void *schedule, uint8_t *out, size_t out_blks) {
@@ -153,9 +154,9 @@ void oqs_aes256_ctr_enc_sch_upd_blks_ni(void *schedule, uint8_t *out, size_t out
 
 void oqs_aes256_ctr_enc_sch_ni(const uint8_t *iv, const size_t iv_len, const void *schedule, uint8_t *out, size_t out_len) {
 	__m128i block;
-	const int8_t *ivi = (const int8_t *) iv;
 	if (iv_len == 12) {
-		block = _mm_set_epi8(0, 0, 0, 0, ivi[8], ivi[9], ivi[10], ivi[11], ivi[4], ivi[5], ivi[6], ivi[7], ivi[0], ivi[1], ivi[2], ivi[3]);
+		const int32_t *ivi = (const int32_t *) iv;
+		block = _mm_set_epi32(0, ivi[2], ivi[1], ivi[0]);
 	} else if (iv_len == 16) {
 		block = _mm_loadu_si128((const __m128i *)iv);
 	} else {
